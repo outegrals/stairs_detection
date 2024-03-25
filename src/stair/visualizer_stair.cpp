@@ -45,8 +45,9 @@ void ViewerStair::drawStairAxis (Stair stair, std::string stair_type, Eigen::Aff
     Eigen::Vector3f point_x;
     Eigen::Vector3f point_y;
     Eigen::Vector3f point_z;
+    Eigen::Vector3f stair_point(stair.initial_point.x, stair.initial_point.y, stair.initial_point.z);
 
-    pcl::transformPoint(stair.initial_point.getVector3fMap(),initial_point,pose.cast<float>());
+    pcl::transformPoint(stair_point,initial_point,pose.cast<float>());
     pcl::transformPoint(Eigen::Vector3f(stair.initial_point.x+stair.stair_dir.col(0)(0)*1, stair.initial_point.y+stair.stair_dir.col(0)(1)*1, stair.initial_point.z+stair.stair_dir.col(0)(2)*1),point_x,pose.cast<float>());
     pcl::transformPoint(Eigen::Vector3f(stair.initial_point.x+stair.stair_dir.col(1)(0)*1, stair.initial_point.y+stair.stair_dir.col(1)(1)*1, stair.initial_point.z+stair.stair_dir.col(1)(2)*1),point_y,pose.cast<float>());
     pcl::transformPoint(Eigen::Vector3f(stair.initial_point.x+stair.stair_dir.col(2)(0)*1, stair.initial_point.y+stair.stair_dir.col(2)(1)*1, stair.initial_point.z+stair.stair_dir.col(2)(2)*1),point_z,pose.cast<float>());
@@ -72,7 +73,7 @@ void ViewerStair::drawStairAxis (Stair stair, std::string stair_type, Eigen::Aff
 }
 
 void ViewerStair::drawStairs (Stair stair, std::string stair_type) {
-    for (int Q = 1; Q<stair.vLevels.size(); Q++) {
+    for (std::size_t Q = 1; Q<stair.vLevels.size(); Q++) {
         std::stringstream ss;
         ss << stair_type << Q + 10;
         const std::string tmp = ss.str();
@@ -84,7 +85,7 @@ void ViewerStair::drawStairs (Stair stair, std::string stair_type) {
 }
 
 void ViewerStair::drawStairs (Stair stair, std::string stair_type, Eigen::Affine3d pose) {
-    for (int Q = 1; Q<stair.vLevels.size(); Q++) {
+    for (std::size_t Q = 1; Q<stair.vLevels.size(); Q++) {
         std::stringstream ss;
         ss << stair_type << Q+10;
         const std::string tmp = ss.str();
@@ -99,7 +100,7 @@ void ViewerStair::drawStairs (Stair stair, std::string stair_type, Eigen::Affine
 
 void ViewerStair::drawRisers (Stair stair, std::string stair_type) {
 
-    for (int Q = 1; Q<stair.vLevels.size(); Q++) {
+    for (std::size_t Q = 1; Q<stair.vLevels.size(); Q++) {
         std::stringstream ss;
         ss << stair_type << Q;
         const std::string tmp = ss.str();
@@ -112,7 +113,7 @@ void ViewerStair::drawRisers (Stair stair, std::string stair_type) {
 }
 
 void ViewerStair::drawRisers (Stair stair, std::string stair_type, Eigen::Affine3d pose) {
-    for (int Q = 1; Q<stair.vRisers.size(); Q++) {
+    for (std::size_t Q = 1; Q<stair.vRisers.size(); Q++) {
         std::stringstream ss;
         ss << stair_type << Q;
         const std::string tmp = ss.str();

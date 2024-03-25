@@ -46,6 +46,7 @@ class GlobalScene {
 
     GlobalScene() {
         c2f.setIdentity();
+        f2c.setIdentity();
         main_dir.setIdentity();
 		
         initial_floor_ = false;

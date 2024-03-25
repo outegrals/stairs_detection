@@ -103,7 +103,7 @@ void Viewer::drawRectangle (pcl::PointCloud<pcl::PointXYZ>::Ptr vertices, double
     std::vector<pcl::Vertices> vvertex;
     vvertex.push_back(vertex);
 
-    sensor_msgs::PointCloud2 msg;
+    sensor_msgs::msg::PointCloud2 msg;
     pcl::PCLPointCloud2 msg_aux;
     pcl::toROSMsg( *vertices, msg );
     pcl_conversions::toPCL( msg, msg_aux );
@@ -389,6 +389,8 @@ void Viewer::createAxis () {
     axis_points->points.push_back(ptx);
     axis_points->points.push_back(pty);
     axis_points->points.push_back(ptz);
+    axis_points->width = axis_points->points.size();
+    axis_points->height = 1;
 }
 
 

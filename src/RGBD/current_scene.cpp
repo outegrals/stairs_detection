@@ -19,12 +19,13 @@
 */
 
 #include <pcl/filters/conditional_removal.h>
-
+#include <pcl/search/search.h>
+#include <pcl/search/kdtree.h> 
 #include "RGBD/current_scene.h"
 
 void CurrentScene::applyVoxelFilter(float leaf_size, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
 	fcloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
-	
+
 	pcl::VoxelGrid<pcl::PointXYZ> vg;
 	vg.setInputCloud (cloud);
 	vg.setLeafSize (leaf_size, leaf_size, leaf_size); 
@@ -47,7 +48,8 @@ void CurrentScene::filterFloorAndCeiling(float floor_height, float ceiling_heigh
 
 void CurrentScene::getNormalsRadius(double radius) {
     normals.reset(new pcl::PointCloud<pcl::Normal>);
-    tree =  boost::shared_ptr<pcl::search::Search<pcl::PointXYZ> > (new pcl::search::KdTree<pcl::PointXYZ>);
+    //tree =  boost::shared_ptr<pcl::search::Search<pcl::PointXYZ> > (new pcl::search::KdTree<pcl::PointXYZ>);
+    tree = pcl::make_shared<pcl::search::KdTree<pcl::PointXYZ>>();
     pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
     normal_estimator.setSearchMethod (tree);
     normal_estimator.setInputCloud (fcloud);
@@ -60,8 +62,9 @@ void CurrentScene::getNormalsRadius(double radius) {
 void CurrentScene::getNormalsNeighbors(int neighbors) {
 
     normals.reset(new pcl::PointCloud<pcl::Normal>);
-    tree =  boost::shared_ptr<pcl::search::Search<pcl::PointXYZ> > (new pcl::search::KdTree<pcl::PointXYZ>);
-	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+    //tree =  boost::shared_ptr<pcl::search::Search<pcl::PointXYZ> > (new pcl::search::KdTree<pcl::PointXYZ>);
+	tree = pcl::make_shared<pcl::search::KdTree<pcl::PointXYZ>>();
+    pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
     normal_estimator.setSearchMethod (tree);
 	normal_estimator.setInputCloud (fcloud);
     normal_estimator.setKSearch (neighbors);

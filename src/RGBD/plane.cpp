@@ -19,6 +19,10 @@
 */
 
 #include "RGBD/plane.h"
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <Eigen/Core>
+#include <Eigen/Eigenvalues>
 
 void Plane::getCentroid() {
     Eigen::Vector4f vector_centroid;

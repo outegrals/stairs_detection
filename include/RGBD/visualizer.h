@@ -31,8 +31,8 @@
 
 #include <pcl/visualization/cloud_viewer.h>
 
-#include <ros/ros.h>
-#include <sensor_msgs/PointCloud2.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include "RGBD/plane.h"
 

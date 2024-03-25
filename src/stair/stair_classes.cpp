@@ -265,7 +265,8 @@ void Stair::getExactStepVertices() {
     if ((type == "down") and (vOrientedLevels[0].vertices->points.size() > 0)) {
         Eigen::Matrix3d rotation_i2s = i2s.rotation();
         Eigen::Vector3f first_step_centroid2s;
-        pcl::transformPoint(vLevels[1].centroid.getVector3fMap(),first_step_centroid2s,i2s.cast<float>());
+        Eigen::Vector3f point(vLevels[1].centroid.x, vLevels[1].centroid.y, vLevels[1].centroid.z);
+        pcl::transformPoint(point,first_step_centroid2s,i2s.cast<float>());
         Eigen::Vector3f initial_vector_point_aux = Eigen::Vector3f(0,first_step_centroid2s(1),vOrientedLevels[0].vertices->points[0].z);
         pcl::transformPoint(initial_vector_point_aux,initial_vector_point_aux, s2i.cast<float>());
         Eigen::Vector3d translation = -1 * (rotation_i2s * initial_vector_point_aux.cast<double>());
@@ -282,7 +283,8 @@ void Stair::getExactStepVertices() {
     else if (type == "up") {
         Eigen::Matrix3d rotation_i2s = i2s.rotation();
         Eigen::Vector3f first_step_centroid2s;
-        pcl::transformPoint(vLevels[1].centroid.getVector3fMap(),first_step_centroid2s,i2s.cast<float>());
+        Eigen::Vector3f point(vLevels[1].centroid.x, vLevels[1].centroid.y, vLevels[1].centroid.z);
+        pcl::transformPoint(point,first_step_centroid2s,i2s.cast<float>());
         Eigen::Vector3f initial_vector_point_aux = Eigen::Vector3f(0,first_step_centroid2s(1),0);
         pcl::transformPoint(initial_vector_point_aux,initial_vector_point_aux, s2i.cast<float>());
         Eigen::Vector3d translation = -1 * (rotation_i2s * initial_vector_point_aux.cast<double>());
@@ -294,7 +296,10 @@ void Stair::getExactStepVertices() {
 
         // Correct vOrientedLevels at zero
         if (vLevels[0].cloud->points.size() > 0)
-            pcl::transformPointCloud(*vLevels[0].vertices, *vOrientedLevels[0].vertices, i2s);
+        {
+            if (vLevels[0].vertices->height > 0 && vLevels[0].vertices->width > 0)
+                pcl::transformPointCloud(*vLevels[0].vertices, *vOrientedLevels[0].vertices, i2s);
+        }
     }
 
     // The final length and height will be averaged, thus we need to cumulate and count steps
