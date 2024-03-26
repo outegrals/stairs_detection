@@ -49,7 +49,7 @@ void CurrentScene::filterFloorAndCeiling(float floor_height, float ceiling_heigh
 void CurrentScene::getNormalsRadius(double radius) {
     normals.reset(new pcl::PointCloud<pcl::Normal>);
     //tree =  boost::shared_ptr<pcl::search::Search<pcl::PointXYZ> > (new pcl::search::KdTree<pcl::PointXYZ>);
-    tree = pcl::make_shared<pcl::search::KdTree<pcl::PointXYZ>>();
+    tree = pcl::make_shared<pcl::search::KdTree<pcl::PointXYZ>>(new pcl::search::KdTree<pcl::PointXYZ>);
     pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
     normal_estimator.setSearchMethod (tree);
     normal_estimator.setInputCloud (fcloud);
@@ -63,7 +63,7 @@ void CurrentScene::getNormalsNeighbors(int neighbors) {
 
     normals.reset(new pcl::PointCloud<pcl::Normal>);
     //tree =  boost::shared_ptr<pcl::search::Search<pcl::PointXYZ> > (new pcl::search::KdTree<pcl::PointXYZ>);
-	tree = pcl::make_shared<pcl::search::KdTree<pcl::PointXYZ>>();
+	tree = pcl::make_shared<pcl::search::KdTree<pcl::PointXYZ>>(new pcl::search::KdTree<pcl::PointXYZ>);
     pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
     normal_estimator.setSearchMethod (tree);
 	normal_estimator.setInputCloud (fcloud);

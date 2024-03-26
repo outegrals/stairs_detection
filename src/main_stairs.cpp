@@ -51,8 +51,9 @@
 #include "stair/stair_classes.h"
 
 static int CAPTURE_MODE = 0; // Capure mode can be 0 (reading clouds from ROS topic), 1 (reading from .pcd file), 2 (reading all *.pcd from directory)
-static int DIR_COUNT = 0;
-static int SUCCESS = 0;
+static int DESCENDING_COUNT= 0;
+static int ASCENDING_COUNT = 0;
+static int HIT_BOTH = 0;
 
 void sayHelp(){
     std::cout << "-- Arguments to pass:" << std::endl;
@@ -93,6 +94,7 @@ public:
 
         // Example with manual loop and controlled spinning
         rclcpp::Rate rate(10); // 10 Hz
+        int tries = 0;
         while (rclcpp::ok()) {
             // Do any work here...
 
@@ -100,6 +102,11 @@ public:
             rclcpp::spin_some(shared_from_this());
 
             rate.sleep();
+            tries++;
+            if (tries > 5){
+                sayHelp();
+                return;
+            }
         }
     }
 
@@ -120,8 +127,13 @@ public:
         color_cloud = temp_cloud;
         pcl::copyPointCloud(*color_cloud, *cloud);
 
-        // Now call execute to process the cloud
-        this->execute(); // Make sure execute uses color_cloud for processing
+        while (rclcpp::ok()) {
+            if (cloud->points.size() > 0)
+                this->execute();
+            //viewer.cloud_viewer_.spinOnce(100);
+            if (viewer.cloud_viewer_.wasStopped())
+                break;
+        }
     }
 
     // Helper function to read just *.pcd files in path
@@ -137,8 +149,8 @@ public:
             RCLCPP_ERROR(this->get_logger(), "Failed to open directory.");
             return;
         }
-
-        while ((entry = readdir(dir)) != nullptr) {
+        int total_files = 0;
+        while (((entry = readdir(dir)) != nullptr) && rclcpp::ok()) {
             std::string entryName = entry->d_name;
             if (has_suffix(entryName, ".pcd")) {
                 std::string full_path = directory_path + "/" + entryName;
@@ -151,16 +163,25 @@ public:
                     RCLCPP_ERROR(this->get_logger(), "Failed to load PCD file: %s", full_path.c_str());
                     continue;
                 }
-                DIR_COUNT += 1;
                 pcl::fromPCLPointCloud2(pcl_pc2, *temp_cloud);
                 
                 // After loading the color cloud, save a copy onto cloud
                 color_cloud = temp_cloud;
                 pcl::copyPointCloud(*color_cloud, *cloud);
-                
-                this->execute();
+                if (cloud->points.size() > 0)
+                {
+                    gscene.reset();
+                    this->execute();
+                    this->execute();
+                }
+
+                total_files += 1;
             }
         }
+        std::cout << "Ascending Cases: " << ASCENDING_COUNT << std::endl;
+        std::cout << "Descending Cases: " << DESCENDING_COUNT << std::endl;
+        std::cout << "Both Cases were hit in the same PCD: " << HIT_BOTH << std::endl;
+        std::cout << "Total Detected Staircases: " << ASCENDING_COUNT + DESCENDING_COUNT - HIT_BOTH << " Out of " << total_files << " Files" << std::endl;
         closedir(dir);
         // No ROS spinning required here unless you're interacting with other parts of a ROS system
     }
@@ -216,7 +237,7 @@ public:
             // viewer.drawPlaneTypesContour(scene.vPlanes);
             // viewer.drawCloudsRandom(scene.vObstacles);
             // viewer.drawAxis(gscene.f2c);
-
+            int hit_both_cases = 0;
             // STAIR DETECTION AND MODELING
             if (scene.detectStairs()) { // First a quick check if horizontal planes may constitute staircases
                 // Ascending staircase
@@ -235,7 +256,8 @@ public:
                         viewer.addStairsText(scene.upstair.i2s, gscene.f2c, scene.upstair.type);
                         viewer.drawFullAscendingStairUntil(scene.upstair,int(scene.upstair.vLevels.size()),scene.upstair.s2i);
                         viewer.drawStairAxis (scene.upstair, scene.upstair.type);
-                        SUCCESS += 1;
+                        ASCENDING_COUNT += 1;
+                        hit_both_cases += 1;
                     }
 
                 }
@@ -256,8 +278,14 @@ public:
                         viewer.addStairsText(scene.downstair.i2s, gscene.f2c, scene.downstair.type);
                         viewer.drawFullDescendingStairUntil(scene.downstair,int(scene.downstair.vLevels.size()),scene.downstair.s2i);
                         viewer.drawStairAxis (scene.downstair, scene.downstair.type);
-                        SUCCESS += 1;
+                        DESCENDING_COUNT += 1;
+                        hit_both_cases += 1;
                     }
+                }
+                if (hit_both_cases == 2)
+                {
+                    HIT_BOTH += 1;
+                    RCLCPP_INFO(this->get_logger(), "This hit both cases");
                 }
             }
             else
@@ -274,7 +302,6 @@ public:
 
         }
 
-        std::cout << "Detected " << SUCCESS << " out of " << DIR_COUNT << std::endl;
     }
 
 private:
