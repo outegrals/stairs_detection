@@ -20,6 +20,9 @@
 
 #include <math.h>
 #include <iostream>
+#include <memory>
+#include <functional>
+#include <limits>
 #include <signal.h>
 #include <time.h>
 #include <dirent.h> // To read directory
@@ -34,7 +37,11 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
+#include "sensor_msgs/msg/image.hpp"
+#include "sensor_msgs/msg/camera_info.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/point_cloud2_iterator.hpp"
+
 
 #include <pcl/PCLHeader.h>
 #include <pcl/visualization/pcl_visualizer.h>
@@ -42,168 +49,231 @@
 #include <pcl/io/ply_io.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
 #include <pcl/common/transforms.h>
 #include <pcl/common/time.h>
 
-#include "stair/visualizer_stair.h"
+#include <image_transport/image_transport.hpp>
+#include "cv_bridge/cv_bridge.h"
+#include "opencv2/imgproc/imgproc.hpp"
+
 #include "stair/global_scene_stair.h"
 #include "stair/current_scene_stair.h"
 #include "stair/stair_classes.h"
 
-static int CAPTURE_MODE = 0; // Capure mode can be 0 (reading clouds from ROS topic), 1 (reading from .pcd file), 2 (reading all *.pcd from directory)
 static int DESCENDING_COUNT= 0;
 static int ASCENDING_COUNT = 0;
 static int HIT_BOTH = 0;
 
-void sayHelp(){
-    std::cout << "-- Arguments to pass:" << std::endl;
-    std::cout << "<no args>               - If no arguments ('$ rosrun stairs_detection stairs'), by default the algorithm proceed reading point clouds from ROS topic /camera/depth_registered/points" << std::endl;
-    std::cout << "pcd <path to file>      - To run a PCD example (e.g. from Tang dataset), it should be '$ rosrun stairs_detection stairs pcd /path/to.pcd'" << std::endl;
-    std::cout << "dir <path to directory> - To run all PCDs in a dataset, you can point at the folder, e.g. '$ rosrun stairs_detection stairs dir /path/to/pcds/" << std::endl;
-}
-
 class MainLoop : public rclcpp::Node {
 public:
-    MainLoop() : Node("stairs_detection_node"), viewer(), gscene() {
-        //color_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
-        //color_cloud_show = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
-        //cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+
+    MainLoop() : Node("stairs_detection_node"), gscene() {
         color_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
-        color_cloud_show.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
         cloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
-        subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            "/camera/depth_registered/points", 10,
-            std::bind(&MainLoop::cloudCallback, this, std::placeholders::_1));
+        last_depth_msg_ = nullptr;
+        last_depth_info_msg_ = nullptr;
+
+        /**
+         * All topics the realsense returns
+        * /d435_front/color/camera_info
+        * /d435_front/color/image_raw
+        * /d435_front/depth/camera_info
+        * /d435_front/depth/image_raw
+        * /d435_front/infra1/camera_info
+        * /d435_front/infra1/image_raw
+        * /d435_front/infra2/camera_info
+        * /d435_front/infra2/image_raw
+        */
+        // Subscribe to image and camera info topics with SensorDataQoS
+        depth_image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/d435_front/depth/image_raw", rclcpp::SensorDataQoS(),
+            std::bind(&MainLoop::depthImageCallback, this, std::placeholders::_1));
+
+        depth_camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+            "/d435_front/depth/camera_info", rclcpp::SensorDataQoS(),
+            std::bind(&MainLoop::depthCameraInfoCallback, this, std::placeholders::_1));
+
+        rgb_image_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+            "/d435_front/color/image_raw", rclcpp::SensorDataQoS(),
+            std::bind(&MainLoop::RgbImageCallback, this, std::placeholders::_1));
+
+        rgb_camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+            "/d435_front/color/camera_info", rclcpp::SensorDataQoS(),
+            std::bind(&MainLoop::RgbCameraInfoCallback, this, std::placeholders::_1));
+
+        // Create a timer to periodically process data, replacing the continuous loop
+        timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(100), // Adjust the rate as needed
+            std::bind(&MainLoop::processData, this));
+
+        RCLCPP_INFO(this->get_logger(), "Stair detection node created");
     }
 
-    void cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-        pcl::PCLPointCloud2 pcl_pc2;
-        pcl_conversions::toPCL(*msg, pcl_pc2);
-        pcl::fromPCLPointCloud2(pcl_pc2, *color_cloud);
-        // Additional processing...
+
+private:
+
+    void depthImageCallback(const sensor_msgs::msg::Image::SharedPtr depth_msg) {
+        last_depth_msg_ = depth_msg;
     }
 
-    void startMainLoop() {
-        RCLCPP_INFO(this->get_logger(), "Starting Main Loop.");
+    void depthCameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr info_msg) {
+        last_depth_info_msg_ = info_msg;
+    }
 
-        // In ROS2, the spin function is responsible for processing callbacks. For a subscriber,
-        // spinning will wait for and call the callback function whenever a new message is received.
-        // rclcpp::spin(shared_from_this()) can be called if this node needs to be spun.
-        // If the loop contains other periodic checks or operations outside of callbacks,
-        // consider using a while loop with rclcpp::spin_some() for more controlled spinning.
+    void RgbImageCallback(const sensor_msgs::msg::Image::SharedPtr rgb_msg) {
+        last_rgb_msg_ = rgb_msg;
+    }
 
-        // Example with manual loop and controlled spinning
-        rclcpp::Rate rate(10); // 10 Hz
-        int tries = 0;
-        while (rclcpp::ok()) {
-            // Do any work here...
+    void RgbCameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr info_msg) {
+        last_rgb_info_msg_ = info_msg;
+    }
 
-            // Spin some to handle callbacks
-            rclcpp::spin_some(shared_from_this());
+    void processData() {
+        RCLCPP_INFO(this->get_logger(), "Processing Data start");
 
-            rate.sleep();
-            tries++;
-            if (tries > 5){
-                sayHelp();
-                return;
+        if (last_depth_msg_ != nullptr && last_depth_info_msg_ != nullptr && last_rgb_msg_ != nullptr && last_rgb_info_msg_ != nullptr) {
+            RCLCPP_INFO(this->get_logger(), "Processing Data");
+            // If not currently processing, start processing the new data
+            if (!is_processing_) {
+                RCLCPP_INFO(this->get_logger(), "Reset for new batch of data");
+                is_processing_ = true;
+                gscene.reset(); // Reset gscene for the new batch of data
+
+                //so we don't overwrite the cloud info until it's time for a new one
+                sensor_msgs::msg::PointCloud2::SharedPtr cloud_msg(new sensor_msgs::msg::PointCloud2);
+                ImageToPointCloud2(last_depth_msg_, last_depth_info_msg_, last_rgb_msg_, last_rgb_info_msg_, *cloud_msg);
+                pcl::fromROSMsg(*cloud_msg, *color_cloud);
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
+                for (const auto& point : *color_cloud)
+                {
+                    if (!(point.x == 0 && point.y == 0 && point.z == 0 && point.rgb == 0))
+                    {
+                        cloud_filtered->push_back(point);
+                    }
+                }
+                pcl::copyPointCloud(*cloud_filtered, *cloud);
+
+                // Assuming 'cloud' is a pcl::PointCloud<pcl::PointXYZ>::Ptr with your data
+                if (cloud_filtered && !cloud_filtered->points.empty()) {
+                    pcl::io::savePCDFileASCII("output_cloud.pcd", *cloud_filtered);
+                    RCLCPP_INFO(this->get_logger(), "Saved %zu points to output_cloud.pcd", cloud_filtered->points.size());
+                }
+            }
+            bool processing_complete = false;
+
+            if (cloud->points.size() > 0) {
+                RCLCPP_INFO(this->get_logger(), "We have point cloud data");
+                //gscene.reset();
+                this->execute();
+                // No need to call this->execute() twice unless it's intentional
+            }
+            else
+            {
+                RCLCPP_INFO(this->get_logger(), "No more data left to process");
+                processing_complete = true;
+            }
+            
+
+            // Reset messages to prevent reprocessing
+            if (processing_complete) {
+                RCLCPP_INFO(this->get_logger(), "Reset Data");
+                is_processing_ = false;
+                last_depth_msg_ = nullptr; // Reset messages to indicate readiness for new data
+                last_depth_info_msg_ = nullptr;
             }
         }
     }
 
+    void ImageToPointCloud2(
+        const sensor_msgs::msg::Image::SharedPtr& depth_msg,
+        const sensor_msgs::msg::CameraInfo::SharedPtr& depth_info_msg,
+        const sensor_msgs::msg::Image::SharedPtr& rgb_msg,
+        const sensor_msgs::msg::CameraInfo::SharedPtr& rgb_info_msg,
+        sensor_msgs::msg::PointCloud2& cloud_msg)
+    {
+        RCLCPP_INFO(this->get_logger(), "Converting Data");
 
-    // This functions configures and executes the loop reading from a .pcd file (capture_mode = 1)
-    void startPCD(const std::string& file_path) {
-        pcl::PCLPointCloud2 pcl_pc2;
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+        // Convert ROS image messages to OpenCV images
+        cv_bridge::CvImagePtr cv_depth_ptr = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::TYPE_16UC1);
+        cv_bridge::CvImagePtr cv_rgb_ptr = cv_bridge::toCvCopy(rgb_msg, sensor_msgs::image_encodings::RGB8);
 
-        if (pcl::io::loadPCDFile(file_path, pcl_pc2) == -1) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to load PCD file.");
-            return;
-        }
+        // Resize RGB image to match depth image resolution
+        cv::Mat resized_rgb;
+        cv::resize(cv_rgb_ptr->image, resized_rgb, cv_depth_ptr->image.size());
 
-        pcl::fromPCLPointCloud2(pcl_pc2, *temp_cloud);
-        
-        // After loading the color cloud, save a copy onto cloud
-        color_cloud = temp_cloud;
-        pcl::copyPointCloud(*color_cloud, *cloud);
+        // Calculate constants for the projection
+        float fx = 1.0f / depth_info_msg->k[0];  // Focal length in x
+        float fy = 1.0f / depth_info_msg->k[4];  // Focal length in y
+        float cx = depth_info_msg->k[2];         // Optical center in x
+        float cy = depth_info_msg->k[5];         // Optical center in y
 
-        while (rclcpp::ok()) {
-            if (cloud->points.size() > 0)
-                this->execute();
-            //viewer.cloud_viewer_.spinOnce(100);
-            if (viewer.cloud_viewer_.wasStopped())
-                break;
-        }
-    }
+        // Initialize PointCloud2 message
+        cloud_msg.height = depth_msg->height;
+        cloud_msg.width = depth_msg->width;
+        cloud_msg.is_dense = false; // There may be invalid points
+        cloud_msg.is_bigendian = false;
+        cloud_msg.header = depth_msg->header; // Use the header from the depth image
 
-    // Helper function to read just *.pcd files in path
-    bool has_suffix(const std::string& s, const std::string& suffix) {
-        return (s.size() >= suffix.size()) && equal(suffix.rbegin(), suffix.rend(), s.rbegin());
-    }
+        // Set the fields for the PointCloud2 message
+        sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
+        modifier.setPointCloud2FieldsByString(2, "xyz", "rgb"); // Updated to include RGB
+        modifier.resize(depth_msg->width * depth_msg->height);
 
-    void startDirectory(const std::string& directory_path) {
-        DIR* dir = opendir(directory_path.c_str());
-        struct dirent* entry;
+        sensor_msgs::PointCloud2Iterator<float> iter_x(cloud_msg, "x");
+        sensor_msgs::PointCloud2Iterator<float> iter_y(cloud_msg, "y");
+        sensor_msgs::PointCloud2Iterator<float> iter_z(cloud_msg, "z");
+        sensor_msgs::PointCloud2Iterator<uint8_t> iter_r(cloud_msg, "r");
+        sensor_msgs::PointCloud2Iterator<uint8_t> iter_g(cloud_msg, "g");
+        sensor_msgs::PointCloud2Iterator<uint8_t> iter_b(cloud_msg, "b");
 
-        if (!dir) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to open directory.");
-            return;
-        }
-        int total_files = 0;
-        while (((entry = readdir(dir)) != nullptr) && rclcpp::ok()) {
-            std::string entryName = entry->d_name;
-            if (has_suffix(entryName, ".pcd")) {
-                std::string full_path = directory_path + "/" + entryName;
-                RCLCPP_INFO(this->get_logger(), "Loading PCD: %s", full_path.c_str());
+        const uint16_t* depth_row = reinterpret_cast<const uint16_t*>(&depth_msg->data[0]);
 
-                pcl::PCLPointCloud2 pcl_pc2;
-                pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+        for (int v = 0; v < (int)depth_msg->height; ++v, depth_row += depth_msg->step / sizeof(uint16_t))
+        {
+            for (int u = 0; u < (int)depth_msg->width; ++u)
+            {
+                uint16_t depth = depth_row[u];
 
-                if (pcl::io::loadPCDFile(full_path, pcl_pc2) == -1) {
-                    RCLCPP_ERROR(this->get_logger(), "Failed to load PCD file: %s", full_path.c_str());
+                if (depth == 0) // Skip if depth value is invalid
+                {
+                    *iter_x = *iter_y = *iter_z = std::numeric_limits<float>::quiet_NaN();
+                    *iter_r = *iter_g = *iter_b = 0;
                     continue;
                 }
-                pcl::fromPCLPointCloud2(pcl_pc2, *temp_cloud);
-                
-                // After loading the color cloud, save a copy onto cloud
-                color_cloud = temp_cloud;
-                pcl::copyPointCloud(*color_cloud, *cloud);
-                if (cloud->points.size() > 0)
-                {
-                    gscene.reset();
-                    this->execute();
-                    this->execute();
-                }
 
-                total_files += 1;
+                float z = depth * 0.001f; // Convert depth to meters
+                float x = (u - cx) * z * fx;
+                float y = (v - cy) * z * fy;
+
+                *iter_x = x;
+                *iter_y = y;
+                *iter_z = z;
+
+                // Map color data
+                // Accessing RGB data from resized_rgb_image
+                cv::Vec3b color = resized_rgb.at<cv::Vec3b>(v, u);
+                *iter_r = color[0]; // R
+                *iter_g = color[1]; // G
+                *iter_b = color[2]; // B
+
+                ++iter_x; ++iter_y; ++iter_z;
+                ++iter_r; ++iter_g; ++iter_b;
             }
         }
-        std::cout << "Ascending Cases: " << ASCENDING_COUNT << std::endl;
-        std::cout << "Descending Cases: " << DESCENDING_COUNT << std::endl;
-        std::cout << "Both Cases were hit in the same PCD: " << HIT_BOTH << std::endl;
-        std::cout << "Total Detected Staircases: " << ASCENDING_COUNT + DESCENDING_COUNT - HIT_BOTH << " Out of " << total_files << " Files" << std::endl;
-        closedir(dir);
-        // No ROS spinning required here unless you're interacting with other parts of a ROS system
     }
 
     void execute() {
-        // Prepare viewer for this iteration
-        pcl::copyPointCloud(*color_cloud,*color_cloud_show);
-        viewer.cloud_viewer_.removeAllPointClouds();
-        viewer.cloud_viewer_.removeAllShapes();
-        viewer.createAxis();
-
+        RCLCPP_INFO(this->get_logger(), "Executing Algo");
         // Process cloud from current view
         CurrentSceneStair scene;
         scene.applyVoxelFilter(0.04f, cloud); // Typically 0.04m voxels works fine for this method, however, bigger number (for more efficiency) or smaller (for more accuracy) can be used
  
         // The method first attempts to find the floor automatically. The floor position allows to orient the scene to reason about planar surfaces (including stairs)
         if (!gscene.initial_floor_) {
+            RCLCPP_INFO(this->get_logger(), "First time seeing scene");
             gscene.findFloor(scene.fcloud);
             gscene.computeCamera2FloorMatrix(gscene.floor_normal_);
-            viewer.drawAxis(gscene.f2c);
-            viewer.drawColorCloud(color_cloud_show,1);
-            //viewer.cloud_viewer_.spinOnce();
         }
         else {
             // Compute the normals
@@ -232,14 +302,10 @@ public:
             // Get Manhattan directions to rotate floor reference to also be aligned with vertical planes (OPTIONAL)
             gscene.getManhattanDirections(scene);
 
-            // Some drawing functions for the PCL to see how the method is doing untill now
-            // viewer.drawNormals (scene.normals, scene.fcloud);
-            // viewer.drawPlaneTypesContour(scene.vPlanes);
-            // viewer.drawCloudsRandom(scene.vObstacles);
-            // viewer.drawAxis(gscene.f2c);
             int hit_both_cases = 0;
             // STAIR DETECTION AND MODELING
             if (scene.detectStairs()) { // First a quick check if horizontal planes may constitute staircases
+                RCLCPP_INFO(this->get_logger(), "Something was detected");
                 // Ascending staircase
                 if (scene.getLevelsFromCandidates(scene.upstair,gscene.c2f)) { // Sort planes in levels
                     scene.upstair.modelStaircase(gscene.main_dir, gscene.has_manhattan_); // Perform the modeling
@@ -252,10 +318,6 @@ public:
                                      scene.upstair.step_length << "m of length. " << std::endl <<
                                      "- Pose (stair axis w.r.t. camera):\n" << scene.upstair.s2i.matrix() << std::endl << std::endl;
 
-                        // Draw staircase
-                        viewer.addStairsText(scene.upstair.i2s, gscene.f2c, scene.upstair.type);
-                        viewer.drawFullAscendingStairUntil(scene.upstair,int(scene.upstair.vLevels.size()),scene.upstair.s2i);
-                        viewer.drawStairAxis (scene.upstair, scene.upstair.type);
                         ASCENDING_COUNT += 1;
                         hit_both_cases += 1;
                     }
@@ -274,10 +336,6 @@ public:
                                      scene.downstair.step_length << "m of length. " << std::endl <<
                                      "- Pose (stair axis w.r.t. camera):\n" << scene.downstair.s2i.matrix() << std::endl << std::endl;
 
-                        // Draw staircase
-                        viewer.addStairsText(scene.downstair.i2s, gscene.f2c, scene.downstair.type);
-                        viewer.drawFullDescendingStairUntil(scene.downstair,int(scene.downstair.vLevels.size()),scene.downstair.s2i);
-                        viewer.drawStairAxis (scene.downstair, scene.downstair.type);
                         DESCENDING_COUNT += 1;
                         hit_both_cases += 1;
                     }
@@ -290,80 +348,38 @@ public:
             }
             else
             {
+                RCLCPP_INFO(this->get_logger(), "Nothing Detected");
                 std::cout << "No staircase Detected!!!" << std::endl;
             }
-            // Draw color cloud and update viewer
-            //viewer.drawColorCloud(color_cloud_show,1);
-            //if (CAPTURE_MODE > 0)
-            //    while(!viewer.cloud_viewer_.wasStopped())
-            //        viewer.cloud_viewer_.spinOnce();
-            //else
-            //    viewer.cloud_viewer_.spinOnce();
-
         }
 
     }
 
-private:
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud_show; // just for visualization of each iteration, since color_cloud keeps being updated in the callback
-    ViewerStair viewer; // Visualization object
+    rclcpp::TimerBase::SharedPtr timer_;
     GlobalSceneStair gscene; // Global scene (i.e. functions and variables that should be kept through iterations)
 
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
+
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_image_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr depth_camera_info_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr rgb_image_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr rgb_camera_info_sub_;
+    sensor_msgs::msg::Image::SharedPtr last_depth_msg_;
+    sensor_msgs::msg::CameraInfo::SharedPtr last_depth_info_msg_;
+    sensor_msgs::msg::Image::SharedPtr last_rgb_msg_;
+    sensor_msgs::msg::CameraInfo::SharedPtr last_rgb_info_msg_;
+
+    // Member variable to track processing state
+    bool is_processing_ = false;
 };
-
-
-void parseArguments(int argc, char ** argv, int &capture_mode){
-    // Capture mode goes as follows:
-    // 0 (default) - Read clouds from ROS topic '/camera/depth_registered/points/'
-    // 1 - Reads pcd inserted as argument, e.g. 'pcd /path/to.pcd'
-    // 2 - Reads all pcds from given directory, e.g. 'dir /path/to/pcds/
-    capture_mode = 0;
-    if (argc == 1) {
-        capture_mode = 0; // From rosbag or live camera
-    }
-    else if (argc == 2) {
-        if ((strcmp(argv[1], "h") == 0) or (strcmp(argv[1], "-h") == 0) or (strcmp(argv[1], "--h") == 0) or (strcmp(argv[1], "help") == 0) or (strcmp(argv[1], "-help") == 0) or (strcmp(argv[1], "--help") == 0)) {
-            sayHelp();
-        }
-    }
-    else if (argc == 3) {
-        if (strcmp(argv[1], "pcd") == 0) {
-            capture_mode = 1; // reads from PCD, which is the next argument
-
-        }
-        else if (strcmp(argv[1], "dir") == 0) {
-            capture_mode = 2; // reads PCDs from directory
-        }
-    }
-}
 
 
 int main(int argc, char* argv[]) {
 
-    parseArguments(argc,argv,CAPTURE_MODE);
-
     rclcpp::init(argc, argv);
     auto app = std::make_shared<MainLoop>();
-
-    switch (CAPTURE_MODE) {
-    case 0:
-        app->startMainLoop();
-        rclcpp::spin(app);
-        break;
-    case 1:
-        app->startPCD(argv[2]); // Process a single PCD file
-        break;
-    case 2:
-        app->startDirectory(argv[2]); // Process a directory of PCD files
-        break;
-    default:
-        std::cerr << "Unknown mode or insufficient arguments." << std::endl;
-        break;
-    }
-
+    rclcpp::spin(app);
     rclcpp::shutdown();
     return 0;
 }

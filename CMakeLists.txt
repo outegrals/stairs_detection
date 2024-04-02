@@ -13,6 +13,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(depth_image_proc)
 find_package(cv_bridge REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io search visualization filters segmentation surface)
@@ -33,9 +34,9 @@ link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 # Declare a C++ executable
-add_executable(stairs src/main_stairs.cpp src/RGBD/visualizer.cpp src/RGBD/plane.cpp src/RGBD/global_scene.cpp src/RGBD/current_scene.cpp src/stair/stair_classes.cpp src/stair/current_scene_stair.cpp src/stair/global_scene_stair.cpp src/stair/visualizer_stair.cpp)
+add_executable(${PROJECT_NAME} src/main_stairs.cpp src/RGBD/plane.cpp src/RGBD/global_scene.cpp src/RGBD/current_scene.cpp src/stair/stair_classes.cpp src/stair/current_scene_stair.cpp src/stair/global_scene_stair.cpp)
 
-ament_target_dependencies(stairs
+ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   sensor_msgs
   image_transport
@@ -46,18 +47,19 @@ ament_target_dependencies(stairs
   tf2_eigen
   tf2_ros
   tf2_geometry_msgs
+  depth_image_proc
   OpenCV
 )
 
 # Specify libraries to link a library or executable target against
-target_link_libraries(stairs
+target_link_libraries(${PROJECT_NAME}
   ${PCL_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
 
 # Install the executable
 install(TARGETS
-  stairs
+  ${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME}
 )
 
