@@ -48,7 +48,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/common/time.h>
 
-#include "stair/visualizer_stair.h"
+//#include "stair/visualizer_stair.h"
 #include "stair/global_scene_stair.h"
 #include "stair/current_scene_stair.h"
 #include "stair/stair_classes.h"
@@ -66,7 +66,7 @@ void sayHelp(){
 // To run de program, create an object mainLoop
 class mainLoop {
  public:
-    mainLoop() : viewer(), gscene() {
+    mainLoop() : /*viewer(),*/ gscene() {
         color_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
         color_cloud_show.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
         cloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
@@ -84,25 +84,14 @@ class mainLoop {
         ros::init(argc, argv, "kinect_navigator_node");
         ros::NodeHandle nh;
 
-        ros::Subscriber cloud_sub = nh.subscribe("/camera/depth_registered/points", 1, &mainLoop::cloudCallback, this);
-
-        int tries = 0;
-        while (cloud_sub.getNumPublishers() == 0) {
-            ROS_INFO("Waiting for subscibers");
-            sleep(1);
-            tries++;
-            if (tries > 5){
-                sayHelp();
-                return;
-            }
-        }
+        ros::Subscriber cloud_sub = nh.subscribe("/d435_front/d435_front/depth/points", 1, &mainLoop::cloudCallback, this);
 
         ros::Rate r(100);
 
         capture_.reset(new ros::AsyncSpinner(0));
         capture_->start();
 
-        while (nh.ok() && !viewer.cloud_viewer_.wasStopped()) {
+        while (nh.ok() /*&& !viewer.cloud_viewer_.wasStopped()*/) {
             if (color_cloud->points.size() > 0) {
                 pcl::copyPointCloud(*color_cloud,*cloud);
                 this->execute();
@@ -127,8 +116,8 @@ class mainLoop {
         while (nh.ok()) {
             if (cloud->points.size() > 0)
                 this->execute();
-             if (viewer.cloud_viewer_.wasStopped())
-                 break;
+             //if (viewer.cloud_viewer_.wasStopped())
+             //    break;
         }
     }
 
@@ -172,9 +161,9 @@ class mainLoop {
     void execute() {
         // Prepare viewer for this iteration
         pcl::copyPointCloud(*color_cloud,*color_cloud_show);
-        viewer.cloud_viewer_.removeAllPointClouds();
-        viewer.cloud_viewer_.removeAllShapes();
-        viewer.createAxis();
+        //viewer.cloud_viewer_.removeAllPointClouds();
+        //viewer.cloud_viewer_.removeAllShapes();
+        //viewer.createAxis();
 
         // Process cloud from current view
         CurrentSceneStair scene;
@@ -184,9 +173,9 @@ class mainLoop {
         if (!gscene.initial_floor_) {
             gscene.findFloor(scene.fcloud);
             gscene.computeCamera2FloorMatrix(gscene.floor_normal_);
-            viewer.drawAxis(gscene.f2c);
-            viewer.drawColorCloud(color_cloud_show,1);
-            viewer.cloud_viewer_.spinOnce();
+            //viewer.drawAxis(gscene.f2c);
+            //viewer.drawColorCloud(color_cloud_show,1);
+            //viewer.cloud_viewer_.spinOnce();
         }
         else {
             // Compute the normals
@@ -236,9 +225,9 @@ class mainLoop {
                                      "- Pose (stair axis w.r.t. camera):\n" << scene.upstair.s2i.matrix() << std::endl << std::endl;
 
                         // Draw staircase
-                        viewer.addStairsText(scene.upstair.i2s, gscene.f2c, scene.upstair.type);
-                        viewer.drawFullAscendingStairUntil(scene.upstair,int(scene.upstair.vLevels.size()),scene.upstair.s2i);
-                        viewer.drawStairAxis (scene.upstair, scene.upstair.type);
+                        //viewer.addStairsText(scene.upstair.i2s, gscene.f2c, scene.upstair.type);
+                        //viewer.drawFullAscendingStairUntil(scene.upstair,int(scene.upstair.vLevels.size()),scene.upstair.s2i);
+                        //viewer.drawStairAxis (scene.upstair, scene.upstair.type);
                     }
 
                 }
@@ -256,9 +245,9 @@ class mainLoop {
                                      "- Pose (stair axis w.r.t. camera):\n" << scene.downstair.s2i.matrix() << std::endl << std::endl;
 
                         // Draw staircase
-                        viewer.addStairsText(scene.downstair.i2s, gscene.f2c, scene.downstair.type);
-                        viewer.drawFullDescendingStairUntil(scene.downstair,int(scene.downstair.vLevels.size()),scene.downstair.s2i);
-                        viewer.drawStairAxis (scene.downstair, scene.downstair.type);
+                        //viewer.addStairsText(scene.downstair.i2s, gscene.f2c, scene.downstair.type);
+                        //viewer.drawFullDescendingStairUntil(scene.downstair,int(scene.downstair.vLevels.size()),scene.downstair.s2i);
+                        //viewer.drawStairAxis (scene.downstair, scene.downstair.type);
                     }
 
 
@@ -266,6 +255,7 @@ class mainLoop {
 
             }
 
+            /*
             // Draw color cloud and update viewer
             viewer.drawColorCloud(color_cloud_show,1);
             if (capture_mode > 0)
@@ -273,7 +263,7 @@ class mainLoop {
                     viewer.cloud_viewer_.spinOnce();
             else
                 viewer.cloud_viewer_.spinOnce();
-
+            */
         }
     }
 
@@ -281,7 +271,7 @@ class mainLoop {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr color_cloud_show; // just for visualization of each iteration, since color_cloud keeps being updated in the callback
     boost::shared_ptr<ros::AsyncSpinner> capture_;
-    ViewerStair viewer; // Visualization object
+    //ViewerStair viewer; // Visualization object
     GlobalSceneStair gscene; // Global scene (i.e. functions and variables that should be kept through iterations)
 
 };

@@ -137,7 +137,7 @@ add_definitions(${PCL_DEFINITIONS})
 
 ## Declare a C++ executable
 
-add_executable(stairs src/main_stairs.cpp src/RGBD/visualizer.cpp src/RGBD/plane.cpp src/RGBD/global_scene.cpp src/RGBD/current_scene.cpp src/stair/stair_classes.cpp src/stair/current_scene_stair.cpp src/stair/global_scene_stair.cpp src/stair/visualizer_stair.cpp)
+add_executable(stairs src/main_stairs.cpp src/RGBD/plane.cpp src/RGBD/global_scene.cpp src/RGBD/current_scene.cpp src/stair/stair_classes.cpp src/stair/current_scene_stair.cpp src/stair/global_scene_stair.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
