@@ -6,7 +6,7 @@
 *
 * stairs_detection is free software: you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
+* the Free Software Foundatio   n, either version 3 of the License, or
 * (at your option) any later version.
 *
 * stairs_detection is distributed in the hope that it will be useful,
@@ -53,7 +53,7 @@
 #include "stair/global_scene_stair.h"
 #include "stair/current_scene_stair.h"
 #include "stair/stair_classes.h"
-#include "stair/stair_info.h"
+#include "stairs_detection/stair_info.h"
 
 
 static int capture_mode = 0; // Capure mode can be 0 (reading clouds from ROS topic), 1 (reading from .pcd file), 2 (reading all *.pcd from directory)
@@ -234,22 +234,22 @@ class mainLoop {
                         //viewer.drawFullAscendingStairUntil(scene.upstair,int(scene.upstair.vLevels.size()),scene.upstair.s2i);
                         //viewer.drawStairAxis (scene.upstair, scene.upstair.type);
                         // Populate the StairInfo message
-                        stairs_detection::StairInfo stair_msg;
+                        stairs_detection::stair_info stair_msg;
                         stair_msg.step_width = scene.downstair.step_width;
                         stair_msg.step_height = scene.downstair.step_height;
                         stair_msg.step_length = scene.downstair.step_length;
-                        stair_msg.is_ascebt = true;
+                        stair_msg.is_ascent = true;
 
                         // Convert Eigen::Affine3d (or similar) to geometry_msgs::Pose
                         Eigen::Quaterniond q(scene.downstair.s2i.rotation());
                         Eigen::Vector3d p = scene.downstair.s2i.translation();
-                        stair_msg.stair_pose.position.x = p.x();
-                        stair_msg.stair_pose.position.y = p.y();
-                        stair_msg.stair_pose.position.z = p.z();
-                        stair_msg.stair_pose.orientation.x = q.x();
-                        stair_msg.stair_pose.orientation.y = q.y();
-                        stair_msg.stair_pose.orientation.z = q.z();
-                        stair_msg.stair_pose.orientation.w = q.w();
+                        stair_msg.pose.position.x = p.x();
+                        stair_msg.pose.position.y = p.y();
+                        stair_msg.pose.position.z = p.z();
+                        stair_msg.pose.orientation.x = q.x();
+                        stair_msg.pose.orientation.y = q.y();
+                        stair_msg.pose.orientation.z = q.z();
+                        stair_msg.pose.orientation.w = q.w();
 
                         // Publish the message
                         stair_info_pub.publish(stair_msg);
@@ -275,22 +275,22 @@ class mainLoop {
                         //viewer.drawStairAxis (scene.downstair, scene.downstair.type);
 
                         // Populate the StairInfo message
-                        stairs_detection::StairInfo stair_msg;
+                        stairs_detection::stair_info stair_msg;
                         stair_msg.step_width = scene.downstair.step_width;
                         stair_msg.step_height = scene.downstair.step_height;
                         stair_msg.step_length = scene.downstair.step_length;
-                        stair_msg.is_ascebt = false;
+                        stair_msg.is_ascent = false;
 
                         // Convert Eigen::Affine3d (or similar) to geometry_msgs::Pose
                         Eigen::Quaterniond q(scene.downstair.s2i.rotation());
                         Eigen::Vector3d p = scene.downstair.s2i.translation();
-                        stair_msg.stair_pose.position.x = p.x();
-                        stair_msg.stair_pose.position.y = p.y();
-                        stair_msg.stair_pose.position.z = p.z();
-                        stair_msg.stair_pose.orientation.x = q.x();
-                        stair_msg.stair_pose.orientation.y = q.y();
-                        stair_msg.stair_pose.orientation.z = q.z();
-                        stair_msg.stair_pose.orientation.w = q.w();
+                        stair_msg.pose.position.x = p.x();
+                        stair_msg.pose.position.y = p.y();
+                        stair_msg.pose.position.z = p.z();
+                        stair_msg.pose.orientation.x = q.x();
+                        stair_msg.pose.orientation.y = q.y();
+                        stair_msg.pose.orientation.z = q.z();
+                        stair_msg.pose.orientation.w = q.w();
 
                         // Publish the message
                         stair_info_pub.publish(stair_msg);
@@ -353,7 +353,7 @@ void parseArguments(int argc, char ** argv, int &capture_mode){
 int main(int argc, char* argv[]) {
     mainLoop app;
     parseArguments(argc,argv,capture_mode);
-
+    
     if (capture_mode == 0)
         app.startMainLoop(argc, argv);
 

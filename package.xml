@@ -55,9 +55,27 @@
   <run_depend>tf_conversions</run_depend>
 
   <build_depend>message_generation</build_depend>
-  <exec_depend>message_runtime</exec_depend>
-  <depend>geometry_msgs</depend>
-  <depend>std_msgs</depend>
+  <run_depend>message_runtime</run_depend>
+
+
+  <build_depend>geometry_msgs</build_depend>
+  <run_depend>geometry_msgs</run_depend>
+
+  <build_depend>std_msgs</build_depend>
+  <run_depend>std_msgs</run_depend>
+
+  <build_depend>sensor_msgs</build_depend>
+  <run_depend>sensor_msgs</run_depend>
+
+   <build_depend>image_transport</build_depend>
+  <run_depend>image_transport</run_depend>
+
+  <build_depend>cv_bridge</build_depend>
+  <run_depend>cv_bridge</run_depend>
+
+
+  <!-- <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend> -->
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
@@ -65,3 +83,4 @@
 
   </export>
 </package>
+  
