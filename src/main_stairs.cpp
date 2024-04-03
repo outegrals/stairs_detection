@@ -38,6 +38,7 @@
 #include <ros/console.h>
 #include <ros/topic.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <pcl/PCLHeader.h>
 #include <pcl/visualization/pcl_visualizer.h>
@@ -52,6 +53,7 @@
 #include "stair/global_scene_stair.h"
 #include "stair/current_scene_stair.h"
 #include "stair/stair_classes.h"
+#include "stair/stair_info.h"
 
 
 static int capture_mode = 0; // Capure mode can be 0 (reading clouds from ROS topic), 1 (reading from .pcd file), 2 (reading all *.pcd from directory)
@@ -83,6 +85,9 @@ class mainLoop {
         // ROS subscribing
         ros::init(argc, argv, "kinect_navigator_node");
         ros::NodeHandle nh;
+        
+        //need to check what the packname is
+        ros::Publisher stair_info_pub = nh.advertise<stairs_detection::stair_info>("stair_info", 10);
 
         ros::Subscriber cloud_sub = nh.subscribe("/d435_front/d435_front/depth/points", 1, &mainLoop::cloudCallback, this);
 
@@ -228,6 +233,26 @@ class mainLoop {
                         //viewer.addStairsText(scene.upstair.i2s, gscene.f2c, scene.upstair.type);
                         //viewer.drawFullAscendingStairUntil(scene.upstair,int(scene.upstair.vLevels.size()),scene.upstair.s2i);
                         //viewer.drawStairAxis (scene.upstair, scene.upstair.type);
+                        // Populate the StairInfo message
+                        stairs_detection::StairInfo stair_msg;
+                        stair_msg.step_width = scene.downstair.step_width;
+                        stair_msg.step_height = scene.downstair.step_height;
+                        stair_msg.step_length = scene.downstair.step_length;
+                        stair_msg.is_ascebt = true;
+
+                        // Convert Eigen::Affine3d (or similar) to geometry_msgs::Pose
+                        Eigen::Quaterniond q(scene.downstair.s2i.rotation());
+                        Eigen::Vector3d p = scene.downstair.s2i.translation();
+                        stair_msg.stair_pose.position.x = p.x();
+                        stair_msg.stair_pose.position.y = p.y();
+                        stair_msg.stair_pose.position.z = p.z();
+                        stair_msg.stair_pose.orientation.x = q.x();
+                        stair_msg.stair_pose.orientation.y = q.y();
+                        stair_msg.stair_pose.orientation.z = q.z();
+                        stair_msg.stair_pose.orientation.w = q.w();
+
+                        // Publish the message
+                        stair_info_pub.publish(stair_msg);
                     }
 
                 }
@@ -248,6 +273,27 @@ class mainLoop {
                         //viewer.addStairsText(scene.downstair.i2s, gscene.f2c, scene.downstair.type);
                         //viewer.drawFullDescendingStairUntil(scene.downstair,int(scene.downstair.vLevels.size()),scene.downstair.s2i);
                         //viewer.drawStairAxis (scene.downstair, scene.downstair.type);
+
+                        // Populate the StairInfo message
+                        stairs_detection::StairInfo stair_msg;
+                        stair_msg.step_width = scene.downstair.step_width;
+                        stair_msg.step_height = scene.downstair.step_height;
+                        stair_msg.step_length = scene.downstair.step_length;
+                        stair_msg.is_ascebt = false;
+
+                        // Convert Eigen::Affine3d (or similar) to geometry_msgs::Pose
+                        Eigen::Quaterniond q(scene.downstair.s2i.rotation());
+                        Eigen::Vector3d p = scene.downstair.s2i.translation();
+                        stair_msg.stair_pose.position.x = p.x();
+                        stair_msg.stair_pose.position.y = p.y();
+                        stair_msg.stair_pose.position.z = p.z();
+                        stair_msg.stair_pose.orientation.x = q.x();
+                        stair_msg.stair_pose.orientation.y = q.y();
+                        stair_msg.stair_pose.orientation.z = q.z();
+                        stair_msg.stair_pose.orientation.w = q.w();
+
+                        // Publish the message
+                        stair_info_pub.publish(stair_msg);
                     }
 
 
