@@ -50,78 +50,28 @@ If you use this code in an academic work, please cite:
 
 ## Prerequisites
 - **OS**: We have tested this code in **Ubuntu 16.04** and **18.04**, but it could work in other versions as well.
-- **ROS**: We have tested this code with ROS **Kinetic** (in Ubuntu 16.04) and **Melodic** (in Ubuntu 18.04).
+- **ROS**: We have tested this code with ROS **Humble** (in Ubuntu 22.04).
 
-### Installation of prerequisites
-Assuming a computer with Ubuntu already installed, to install ROS you may refer to the official website and follow instructions (http://wiki.ros.org/ROS/Installation).
-
-A step by step guide, for ROS Melodic:
-- Set up sources.list
-```
-sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
-```
-- Set up keys
-```
-sudo apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key 421C365BD9FF1F717815A3895523BAEEB01FA116
-```
-- Update
-```
-sudo apt-get update
-```
-- Install desktop-full version (recommended):
-```
-sudo apt-get install ros-melodic-desktop-full
-```
-- Environment setup:
-```
-echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
-source ~/.bashrc
-```
-- To use our data and maybe your own, you will need the ROS OpenNI2 package as well (http://wiki.ros.org/openni2_launch)
-``` 
-sudo apt-get install ros-melodic-openni2-launch
-```
 
 ### Configuration of workspace
 
 You may refer to the following the link for more information: http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment#Create_a_ROS_Workspace
 
 Step by step:
-
-- Create workspace folder in your home directory (here called `catkin_ws`)
+CD into this repo workspace
 ```
-$ mkdir -p ~/catkin_ws/src
-$ cd ~/catkin_ws/
-$ catkin_make
+$ colcon build
 ```
 - Environment setup:
 ```
-echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+echo "source install/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
 - Confirm workspace is set up correctly
 ```
 echo $ROS_PACKAGE_PATH
 ```
-you should see something like:
-```
-/home/user/catkin_ws/src:/opt/ros/melodic/share
-```
 
-## Building the Stairs detection and modeling implementation
-The packages should be in placed in the `catkin_ws/src` folder (`cd ~/catkin_ws/src` if necessary). If you have your workspace named differently, substitute `catkin_ws` for your workspace name from here on.
-
-To download:
-```
-git clone https://github.com/aperezyus/stairs_detection.git
-
-```
-
-To compile, go to the workspace folder and do `catkin_make`.
-```
-cd ~/catkin_ws
-catkin_make
-```
 If you experience any problem with these instructions, please contact us.
 
 ## Examples
