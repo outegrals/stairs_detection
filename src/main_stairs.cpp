@@ -100,6 +100,15 @@ class mainLoop {
             if (color_cloud->points.size() > 0) {
                 pcl::copyPointCloud(*color_cloud,*cloud);
                 this->execute();
+
+                if (ascent_detected)
+                {
+                    stair_info_pub.publish(ascent_stair_msg);
+                }
+                if (descent_detected)
+                {
+                    stair_info_pub.publish(descent_stair_msg);
+                }
             }
 
             r.sleep();
@@ -166,6 +175,8 @@ class mainLoop {
     void execute() {
         // Prepare viewer for this iteration
         pcl::copyPointCloud(*color_cloud,*color_cloud_show);
+        ascent_detected = false;
+        descent_detected = false;
         //viewer.cloud_viewer_.removeAllPointClouds();
         //viewer.cloud_viewer_.removeAllShapes();
         //viewer.createAxis();
@@ -229,6 +240,7 @@ class mainLoop {
                                      scene.upstair.step_length << "m of length. " << std::endl <<
                                      "- Pose (stair axis w.r.t. camera):\n" << scene.upstair.s2i.matrix() << std::endl << std::endl;
 
+                        ascent_detected = true;
                         // Draw staircase
                         //viewer.addStairsText(scene.upstair.i2s, gscene.f2c, scene.upstair.type);
                         //viewer.drawFullAscendingStairUntil(scene.upstair,int(scene.upstair.vLevels.size()),scene.upstair.s2i);
@@ -251,8 +263,7 @@ class mainLoop {
                         stair_msg.pose.orientation.z = q.z();
                         stair_msg.pose.orientation.w = q.w();
 
-                        // Publish the message
-                        stair_info_pub.publish(stair_msg);
+                        ascent_stair_msg = stair_msg;
                     }
 
                 }
@@ -274,6 +285,7 @@ class mainLoop {
                         //viewer.drawFullDescendingStairUntil(scene.downstair,int(scene.downstair.vLevels.size()),scene.downstair.s2i);
                         //viewer.drawStairAxis (scene.downstair, scene.downstair.type);
 
+                        descent_detected = true;
                         // Populate the StairInfo message
                         stairs_detection::stair_info stair_msg;
                         stair_msg.step_width = scene.downstair.step_width;
@@ -292,8 +304,7 @@ class mainLoop {
                         stair_msg.pose.orientation.z = q.z();
                         stair_msg.pose.orientation.w = q.w();
 
-                        // Publish the message
-                        stair_info_pub.publish(stair_msg);
+                        descent_stair_msg = stair_msg;
                     }
 
 
@@ -319,6 +330,10 @@ class mainLoop {
     boost::shared_ptr<ros::AsyncSpinner> capture_;
     //ViewerStair viewer; // Visualization object
     GlobalSceneStair gscene; // Global scene (i.e. functions and variables that should be kept through iterations)
+    stairs_detection::stair_info ascent_stair_msg;
+    stairs_detection::stair_info descent_stair_msg;
+    bool ascent_detected = false;
+    bool descent_detected = false;
 
 };
 
