@@ -250,6 +250,7 @@ class mainLoop {
                         stair_msg.step_width = scene.downstair.step_width;
                         stair_msg.step_height = scene.downstair.step_height;
                         stair_msg.step_length = scene.downstair.step_length;
+                        stair_msg.step_amount = scene.downstair.vLevels.size()-1;
                         stair_msg.is_ascent = true;
 
                         // Convert Eigen::Affine3d (or similar) to geometry_msgs::Pose
@@ -291,6 +292,7 @@ class mainLoop {
                         stair_msg.step_width = scene.downstair.step_width;
                         stair_msg.step_height = scene.downstair.step_height;
                         stair_msg.step_length = scene.downstair.step_length;
+                        stair_msg.step_amount = scene.downstair.vLevels.size()-1;
                         stair_msg.is_ascent = false;
 
                         // Convert Eigen::Affine3d (or similar) to geometry_msgs::Pose
