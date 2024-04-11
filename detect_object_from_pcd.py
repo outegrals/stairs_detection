@@ -50,6 +50,9 @@ objects_above_plane = pcd.select_by_index(indices_above_plane)
 # Perform DBSCAN clustering
 labels = np.array(objects_above_plane.cluster_dbscan(eps=0.05, min_points=10, print_progress=True))
 
+# Create an array to hold bounding box sizes
+cluster_sizes = []
+
 # The max label is the label of the biggest cluster.
 max_label = labels.max()
 print(f"point cloud has {max_label + 1} clusters")
@@ -59,6 +62,21 @@ colors = plt.get_cmap("tab20")(labels / (max_label if max_label > 0 else 1))
 colors[labels < 0] = 0  # noise points that are not in any cluster
 
 objects_above_plane.colors = o3d.utility.Vector3dVector(colors[:, :3])
+
+# Iterate over each cluster to calculate its size
+for i in range(labels.max() + 1):
+    # Select points belonging to the current cluster
+    cluster_points = objects_above_plane.select_by_index(np.where(labels == i)[0])
+
+    # Compute the axis-aligned bounding box of the cluster
+    aabb = cluster_points.get_axis_aligned_bounding_box()
+    
+    # Get the extent (difference between max and min) along each axis
+    extent = aabb.get_extent()
+    
+    # Store the size (extent) of the cluster
+    cluster_sizes.append(extent)
+    print(f"Cluster {i}: Size (width, depth, height) = {extent}")
 
 # Visualize the point cloud
 #o3d.visualization.draw_geometries([pcd])
