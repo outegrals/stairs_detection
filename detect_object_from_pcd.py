@@ -34,8 +34,9 @@ plane_model, inliers = pcd.segment_plane(distance_threshold=0.01,
 print(f"Plane equation: {a:.2f}x + {b:.2f}y + {c:.2f}z + {d:.2f} = 0")
 
 floor = pcd.select_by_index(inliers)
-objects = pcd.select_by_index(inliers, invert=True)
+floor.paint_uniform_color([1.0, 0, 0])  # Red
 
+objects = pcd.select_by_index(inliers, invert=True)
 # Extract the point cloud data as an Nx3 numpy array
 points = np.asarray(objects.points)
 # Calculate the absolute distance of each point to the plane
@@ -45,10 +46,21 @@ distances_to_plane /= np.sqrt(a**2 + b**2 + c**2)
 indices_above_plane = np.where(distances_to_plane > 0.1)[0]
 objects_above_plane = pcd.select_by_index(indices_above_plane)
 
-floor.paint_uniform_color([1.0, 0, 0])  # Red
-objects_above_plane.paint_uniform_color([0, 1, 0])  # Green for objects above the plane
+
+# Perform DBSCAN clustering
+labels = np.array(objects_above_plane.cluster_dbscan(eps=0.05, min_points=10, print_progress=True))
+
+# The max label is the label of the biggest cluster.
+max_label = labels.max()
+print(f"point cloud has {max_label + 1} clusters")
+
+# Assign a color for each cluster
+colors = plt.get_cmap("tab20")(labels / (max_label if max_label > 0 else 1))
+colors[labels < 0] = 0  # noise points that are not in any cluster
+
+objects_above_plane.colors = o3d.utility.Vector3dVector(colors[:, :3])
 
 # Visualize the point cloud
-o3d.visualization.draw_geometries([pcd])
+#o3d.visualization.draw_geometries([pcd])
 o3d.visualization.draw_geometries([floor, objects_above_plane])
 
